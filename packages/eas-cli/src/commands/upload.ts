@@ -33,7 +33,9 @@ import { resolveWorkflowAsync } from '../project/workflow';
 import { promptAsync } from '../prompts';
 import * as xcode from '../run/ios/xcode';
 import { uploadFileAtPathToGCSAsync } from '../uploads';
+import { parseBinaryAndroidManifestVersions } from '../utils/androidManifest';
 import { fromNow } from '../utils/date';
+import formatFields from '../utils/formatFields';
 import { enableJsonOutput, printJsonOnlyOutput } from '../utils/json';
 import { getTmpDirectory } from '../utils/paths';
 import { parseBinaryPlistBuffer } from '../utils/plist';
@@ -150,25 +152,34 @@ Use --profile with --current to record the eas.json build profile used for the a
     Log.log('Uploading your app archive to EAS');
     const bucketKey = await uploadAppArchiveAsync(graphqlClient, localBuildPath);
 
+    const buildMetadata: BuildMetadataInput = {
+      distribution: DistributionType.Internal,
+      fingerprintHash: fingerprint,
+      developmentClient,
+      ...metadata,
+    };
     const build = await LocalBuildMutation.createLocalBuildAsync(
       graphqlClient,
       projectId,
       { platform: toAppPlatform(platform), simulator },
       { type: LocalBuildArchiveSourceType.Gcs, bucketKey },
-      {
-        distribution: DistributionType.Internal,
-        fingerprintHash: fingerprint,
-        developmentClient,
-        ...metadata,
-      }
+      buildMetadata
     );
 
     if (jsonFlag) {
-      printJsonOnlyOutput({ url: getBuildLogsUrl(build) });
+      printJsonOnlyOutput({ url: getBuildLogsUrl(build), metadata: buildMetadata });
       return;
     }
 
     Log.withTick(`Shareable link to the build: ${getBuildLogsUrl(build)}`);
+    Log.log('Attached metadata:');
+    Log.log(
+      formatFields(
+        Object.entries(buildMetadata)
+          .filter(([, value]) => value != null)
+          .map(([label, value]) => ({ label, value: String(value) }))
+      )
+    );
   }
 
   private async selectPlatformAsync({
@@ -463,6 +474,14 @@ export async function extractAppMetadataAsync(
         fingerprintHash = (await zip.entryData(path.join(basePath, fingerprintFilePath))).toString(
           'utf-8'
         );
+      }
+      // AAB manifests are protobuf encoded; only APKs carry the binary XML manifest.
+      if (current && buildExtension === '.apk' && (await zip.entry('AndroidManifest.xml'))) {
+        const { versionName, versionCode } = parseBinaryAndroidManifestVersions(
+          await zip.entryData('AndroidManifest.xml')
+        );
+        appVersion = versionName;
+        appBuildVersion = versionCode;
       }
     } catch (err) {
       Log.error(`Error reading ${buildExtension}: ${err}`);

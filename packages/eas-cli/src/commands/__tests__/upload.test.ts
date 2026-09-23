@@ -2,6 +2,7 @@ import { Platform, Workflow } from '@expo/eas-build-job';
 import plist from '@expo/plist';
 import { Parser } from '@oclif/core';
 import { vol } from 'memfs';
+import path from 'path';
 
 import { mockTestCommand } from '../../__tests__/commands/utils';
 import { getBuildLogsUrl } from '../../build/utils/url';
@@ -12,6 +13,7 @@ import {
 } from '../../graphql/generated';
 import { FingerprintMutation } from '../../graphql/mutations/FingerprintMutation';
 import { LocalBuildMutation } from '../../graphql/mutations/LocalBuildMutation';
+import Log from '../../log';
 import { getPrivateExpoConfigAsync } from '../../project/expoConfig';
 import { resolveRuntimeVersionAsync } from '../../project/resolveRuntimeVersionAsync';
 import { resolveWorkflowAsync } from '../../project/workflow';
@@ -235,6 +237,22 @@ it('preserves app extraction and only includes artifact versions with --current'
   });
 });
 
+it('reads APK manifest versions only with --current', async () => {
+  // Compiled with aapt2 from a manifest declaring versionCode="42" and versionName="1.2.3".
+  const apk = jest
+    .requireActual<typeof import('fs')>('fs')
+    .readFileSync(path.join(__dirname, 'fixtures', 'app.apk'));
+  vol.mkdirSync('/project', { recursive: true });
+  vol.writeFileSync('/project/app.apk', apk);
+  const original = { developmentClient: false, simulator: false };
+  expect(await extractAppMetadataAsync('/project/app.apk', Platform.ANDROID)).toEqual(original);
+  expect(await extractAppMetadataAsync('/project/app.apk', Platform.ANDROID, true)).toEqual({
+    ...original,
+    appVersion: '1.2.3',
+    appBuildVersion: '42',
+  });
+});
+
 it.each([false, true])(
   'passes metadata to the local build mutation with current=%s',
   async current => {
@@ -257,7 +275,9 @@ it.each([false, true])(
       ],
       { projectId: 'project-id', projectDir, loggedIn: { graphqlClient: {} } }
     );
+    const logSpy = jest.spyOn(Log, 'log');
     await command.runAsync();
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('manual-hash'));
     expect(FingerprintMutation.createFingerprintAsync).toHaveBeenCalledWith({}, 'project-id', {
       hash: 'manual-hash',
     });
