@@ -7,11 +7,16 @@ import { createMockLogger } from '../../../__tests__/utils/logger';
 import { updateVersionsAsync } from '../../utils/ios/configure';
 import IosCredentialsManager, { type Credentials } from '../../utils/ios/credentials/manager';
 import { DistributionType } from '../../utils/ios/credentials/provisioningProfile';
+import { resolveSignableTargetNamesAsync } from '../../utils/ios/resolve';
 import { configureIosCredentialsFunction } from '../configureIosCredentials';
 import { configureIosVersionFunction } from '../configureIosVersion';
 
 jest.mock('../../utils/ios/configure');
 jest.mock('../../utils/ios/credentials/manager');
+jest.mock('../../utils/ios/resolve', () => ({
+  ...jest.requireActual('../../utils/ios/resolve'),
+  resolveSignableTargetNamesAsync: jest.fn(),
+}));
 
 function createCredentials({
   targetNames = ['app', 'share-extension'],
@@ -148,6 +153,37 @@ describe(configureIosVersionFunction, () => {
       {
         buildNumber: undefined,
         appVersion: '1.2.3',
+      },
+      {
+        targetNames: ['app', 'widget'],
+        buildConfiguration: 'Release',
+      }
+    );
+  });
+
+  it('resolves target names from the Xcode project for simulator builds', async () => {
+    const prepareSpy = jest.spyOn(IosCredentialsManager.prototype, 'prepare');
+    jest.mocked(resolveSignableTargetNamesAsync).mockResolvedValue(['app', 'widget']);
+    const buildStep = createBuildStep({
+      job: { ...createTestIosJob({ buildCredentials: {} }), simulator: true, scheme: 'app' },
+      callInputs: {
+        build_number: '42',
+      },
+    });
+
+    await buildStep.executeAsync();
+
+    expect(prepareSpy).not.toHaveBeenCalled();
+    expect(resolveSignableTargetNamesAsync).toHaveBeenCalledWith(
+      buildStep.ctx.workingDirectory,
+      'app'
+    );
+    expect(updateVersionsAsync).toHaveBeenCalledWith(
+      expect.anything(),
+      buildStep.ctx.workingDirectory,
+      {
+        buildNumber: '42',
+        appVersion: undefined,
       },
       {
         targetNames: ['app', 'widget'],
