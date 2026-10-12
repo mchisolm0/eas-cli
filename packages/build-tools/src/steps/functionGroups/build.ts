@@ -164,6 +164,9 @@ function createStepsForIosSimulatorBuild({
     calculateEASUpdateRuntimeVersion,
     installPods,
     configureEASUpdate,
+    configureIosVersionFunction().createBuildStepFromFunctionCall(globalCtx, {
+      workingDirectory,
+    }),
     ...(shouldUseEagerBundle(globalCtx.staticContext.metadata)
       ? [
           eagerBundleBuildFunction().createBuildStepFromFunctionCall(globalCtx, {

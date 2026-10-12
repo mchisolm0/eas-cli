@@ -7,7 +7,11 @@ import { z } from 'zod';
 import { updateVersionsAsync } from '../utils/ios/configure';
 import { IosBuildCredentialsSchema } from '../utils/ios/credentials/credentials';
 import IosCredentialsManager from '../utils/ios/credentials/manager';
-import { resolveBuildConfiguration } from '../utils/ios/resolve';
+import {
+  resolveBuildConfiguration,
+  resolveScheme,
+  resolveSignableTargetNamesAsync,
+} from '../utils/ios/resolve';
 
 export function configureIosVersionFunction(): BuildFunction {
   return new BuildFunction({
@@ -77,6 +81,11 @@ export function configureIosVersionFunction(): BuildFunction {
           );
         }
         targetNames = parsed.data;
+      } else if (job.simulator) {
+        targetNames = await resolveSignableTargetNamesAsync(
+          stepCtx.workingDirectory,
+          resolveScheme(stepCtx.workingDirectory, job)
+        );
       } else {
         const { value, error } = IosBuildCredentialsSchema.validate(inputs.credentials.value, {
           stripUnknown: true,

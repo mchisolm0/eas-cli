@@ -14,6 +14,7 @@ This is the log of notable changes to EAS CLI and related packages.
 ### 🐛 Bug fixes
 
 - [eas-cli] Fix `eas account:view` printing `Role: undefined` for the new Release Manager role. ([#4300](https://github.com/expo/eas-cli/pull/4300) by [@byronkarlen](https://github.com/byronkarlen))
+- [build-tools] Apply the remote build number and app version to iOS simulator builds. ([#XXXX](https://github.com/expo/eas-cli/pull/XXXX) by [@mchisolm0](https://github.com/mchisolm0))
 
 ### 🧹 Chores
 

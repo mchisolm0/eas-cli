@@ -142,7 +142,7 @@ async function buildInnerAsync(
     );
 
     const buildConfiguration = resolveBuildConfiguration(ctx);
-    if (credentials) {
+    if (credentials || ctx.job.version) {
       await ctx.runBuildPhase(BuildPhase.CONFIGURE_XCODE_PROJECT, async () => {
         await configureXcodeProject(ctx, { credentials, buildConfiguration });
       });

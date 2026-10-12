@@ -7,28 +7,38 @@ import path from 'path';
 
 import { Credentials } from './credentials/manager';
 import { DistributionType } from './credentials/provisioningProfile';
+import { resolveScheme } from './resolve';
 import { BuildContext } from '../context';
+import { resolveSignableTargetNamesAsync } from '../steps/utils/ios/resolve';
 
+// Credentials are null for simulator builds, which only need versions configured.
 async function configureXcodeProject(
   ctx: BuildContext<Ios.Job>,
   {
     credentials,
     buildConfiguration,
   }: {
-    credentials: Credentials;
+    credentials: Credentials | null;
     buildConfiguration: string;
   }
 ): Promise<void> {
   ctx.logger.info('Configuring Xcode project');
-  await configureCredentialsAsync(ctx, {
-    credentials,
-    buildConfiguration,
-  });
+  if (credentials) {
+    await configureCredentialsAsync(ctx, {
+      credentials,
+      buildConfiguration,
+    });
+  }
   const { version } = ctx.job;
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
   if (version?.appVersion || version?.buildNumber) {
     await updateVersionsAsync(ctx, {
-      targetNames: Object.keys(credentials.targetProvisioningProfiles),
+      targetNames: credentials
+        ? Object.keys(credentials.targetProvisioningProfiles)
+        : await resolveSignableTargetNamesAsync(
+            ctx.getReactNativeProjectDirectory(),
+            resolveScheme(ctx)
+          ),
       buildConfiguration,
     });
   }

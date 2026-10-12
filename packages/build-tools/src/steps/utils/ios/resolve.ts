@@ -25,3 +25,21 @@ export function resolveBuildConfiguration(job: Ios.Job, buildConfiguration?: str
     return 'Release';
   }
 }
+
+/**
+ * Names of the scheme's application target and its signable dependencies (extensions, watch apps).
+ * Matches the targets EAS CLI resolves credentials for, so builds without credentials (simulator)
+ * can configure the same targets.
+ */
+export async function resolveSignableTargetNamesAsync(
+  workingDir: string,
+  scheme: string
+): Promise<string[]> {
+  const collectNames = (target: IOSConfig.Target.Target): string[] => [
+    target.name,
+    ...(target.dependencies ?? []).filter(dependency => dependency.signable).flatMap(collectNames),
+  ];
+  return collectNames(
+    await IOSConfig.Target.findApplicationTargetWithDependenciesAsync(workingDir, scheme)
+  );
+}
